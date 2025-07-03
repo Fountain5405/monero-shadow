@@ -118,6 +118,7 @@ namespace nodetool
     command_line::add_arg(desc, arg_p2p_hide_my_port);
     command_line::add_arg(desc, arg_no_sync);
     command_line::add_arg(desc, arg_enable_dns_blocklist);
+    command_line::add_arg(desc, arg_disable_seed_nodes);
     command_line::add_arg(desc, arg_no_igd);
     command_line::add_arg(desc, arg_igd);
     command_line::add_arg(desc, arg_out_peers);
@@ -472,6 +473,7 @@ namespace nodetool
     m_offline = command_line::get_arg(vm, cryptonote::arg_offline);
     m_use_ipv6 = command_line::get_arg(vm, arg_p2p_use_ipv6);
     m_require_ipv4 = !command_line::get_arg(vm, arg_p2p_ignore_ipv4);
+    m_disable_seed_nodes = command_line::get_arg(vm, arg_disable_seed_nodes);
     public_zone.m_notifier = cryptonote::levin::notify{
       public_zone.m_net_server.get_io_context(), public_zone.m_net_server.get_config_shared(), nullptr, epee::net_utils::zone::public_, pad_txs, m_payload_handler.get_core()
     };
@@ -1779,7 +1781,7 @@ namespace nodetool
         MDEBUG("Number of seed nodes: " << server.m_seed_nodes.size());
       }
 
-      if (server.m_seed_nodes.empty() || m_offline || !m_exclusive_peers.empty())
+      if (server.m_seed_nodes.empty() || m_offline || !m_exclusive_peers.empty() || m_disable_seed_nodes)
         return true;
 
       size_t try_count = 0;

@@ -253,6 +253,7 @@ namespace nodetool
         m_hide_my_port(false),
         m_igd(no_igd),
         m_offline(false),
+        m_disable_seed_nodes(false),
         is_closing(false),
         m_network_id(),
         m_enable_dns_seed_nodes(true),
@@ -463,6 +464,7 @@ namespace nodetool
     bool m_offline;
     bool m_use_ipv6;
     bool m_require_ipv4;
+    bool m_disable_seed_nodes;
     std::atomic<bool> is_closing;
     std::unique_ptr<boost::thread> mPeersLoggerThread;
     //critical_section m_connections_lock;
