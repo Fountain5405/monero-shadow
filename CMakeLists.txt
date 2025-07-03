@@ -391,6 +391,12 @@ if(PER_BLOCK_CHECKPOINT)
   add_definitions("-DPER_BLOCK_CHECKPOINT")
 endif()
 
+option(SHADOW_BUILD "Build with Shadow network simulator compatibility" OFF)
+if(SHADOW_BUILD)
+  add_definitions("-DSHADOW_BUILD")
+  message(STATUS "Shadow network simulator compatibility enabled")
+endif()
+
 list(INSERT CMAKE_MODULE_PATH 0
   "${CMAKE_SOURCE_DIR}/cmake")
 

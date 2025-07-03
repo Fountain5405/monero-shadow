@@ -53,10 +53,16 @@ void set_process_affinity(int core)
   cpu_set_t cpuset;
   CPU_ZERO(&cpuset);
   CPU_SET(core, &cpuset);
+#ifdef SHADOW_BUILD
+  // Skip pthread_setaffinity_np in Shadow network simulator
+  // Shadow's process emulation doesn't support thread affinity operations
+  std::cout << "pthread_setaffinity_np - SKIPPED (Shadow build)" << std::endl;
+#else
   if (0 != ::pthread_setaffinity_np(::pthread_self(), sizeof(cpuset), &cpuset))
   {
     std::cout << "pthread_setaffinity_np - ERROR" << std::endl;
   }
+#endif
 #endif
 }
 
@@ -75,10 +81,16 @@ void set_thread_high_priority()
   ::pthread_attr_getschedpolicy(&attr, &policy);
   max_prio_for_policy = ::sched_get_priority_max(policy);
 
+#ifdef SHADOW_BUILD
+  // Skip pthread_setschedprio in Shadow network simulator  
+  // Shadow's process emulation doesn't support thread priority operations
+  std::cout << "pthread_setschedprio - SKIPPED (Shadow build)" << std::endl;
+#else
   if (0 != ::pthread_setschedprio(::pthread_self(), max_prio_for_policy))
   {
     std::cout << "pthread_setschedprio - ERROR" << std::endl;
   }
+#endif
 
   ::pthread_attr_destroy(&attr);
 #endif
