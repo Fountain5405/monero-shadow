@@ -482,11 +482,16 @@ namespace nodetool
 
     std::list<epee::net_utils::network_address>   m_priority_peers;
     std::vector<epee::net_utils::network_address> m_exclusive_peers;
-    std::atomic_flag m_fallback_seed_nodes_added;
+    std::atomic<bool> m_fallback_seed_nodes_added;
     std::vector<nodetool::peerlist_entry> m_command_line_peers;
     uint64_t m_peer_livetime;
     //keep connections to initiate some interactions
 
+    std::set<epee::net_utils::network_address> m_connecting_peers;
+    boost::mutex m_connecting_peers_mutex;
+
+    //critical section for connecting peers manipulation
+    boost::mutex m_conn_maker_lock;
 
     static boost::optional<p2p_connection_context> public_connect(network_zone&, epee::net_utils::network_address const&, epee::net_utils::ssl_support_t);
     static boost::optional<p2p_connection_context> socks_connect(network_zone&, epee::net_utils::network_address const&, epee::net_utils::ssl_support_t);

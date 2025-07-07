@@ -1398,6 +1398,21 @@ namespace nodetool
   template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::try_to_connect_and_handshake_with_new_peer(const epee::net_utils::network_address& na, bool just_take_peerlist, uint64_t last_seen_stamp, PeerType peer_type, uint64_t first_seen_stamp)
   {
+    {
+      boost::lock_guard<boost::mutex> lock(m_connecting_peers_mutex);
+      if(m_connecting_peers.count(na))
+      {
+        MDEBUG("Already connecting to " << na.str());
+        return false;
+      }
+      m_connecting_peers.insert(na);
+    }
+
+    epee::misc_utils::auto_scope_leave_caller scope_exit_handler = epee::misc_utils::create_scope_leave_handler([&](){
+      boost::lock_guard<boost::mutex> lock(m_connecting_peers_mutex);
+      m_connecting_peers.erase(na);
+    });
+
     network_zone& zone = m_network_zones.at(na.get_zone());
     if (zone.m_connect == nullptr) // outgoing connections in zone not possible
       return false;
