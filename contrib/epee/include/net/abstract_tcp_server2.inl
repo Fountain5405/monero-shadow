@@ -921,8 +921,12 @@ namespace net_utils
       },
       ec
     );
-    if (ec.value())
-      return false;
+    if (ec.value()) {
+      // In Shadow or other virtualized environments, some socket options (e.g., IP_TOS)
+      // may not be supported. Failing hard here prevents P2P connections from forming
+      // even though the option is non-critical. Instead, log and continue.
+      MWARNING("IP_TOS setsockopt failed: " << ec.message() << "; continuing without TOS");
+    }
     #endif
     connection_basic::socket_.next_layer().set_option(
       boost::asio::ip::tcp::no_delay{false},
