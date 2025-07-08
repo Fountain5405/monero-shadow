@@ -229,20 +229,15 @@ namespace nodetool
   template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::is_host_limit(const epee::net_utils::network_address &address)
   {
-    const network_zone& zone = m_network_zones.at(address.get_zone());
-    if (zone.m_current_number_of_in_peers >= zone.m_config.m_net_config.max_in_connection_count) // in peers limit
-    {
-      MWARNING("Exceeded max incoming connections, so dropping this one.");
-      return true;
-    }
+    /*
+       In a Shadow simulation we often run many Monero nodes behind the same virtual IP
+       subnet and iterate connections very quickly.  The usual per-host or per-subnet
+       connection limits cause every new connection to be dropped immediately, preventing
+       the network from forming.  For simulation purposes we disable these limits entirely.
+    */
 
-    if(has_too_many_connections(address))
-    {
-      MWARNING("CONNECTION FROM " << address.host_str() << " REFUSED, too many connections from the same address");
-      return true;
-    }
-
-    return false;
+    (void)address; // unused when limits are ignored
+    return false; // always allow
   }
 
   //-----------------------------------------------------------------------------------
