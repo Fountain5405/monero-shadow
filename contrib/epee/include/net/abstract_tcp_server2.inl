@@ -932,8 +932,9 @@ namespace net_utils
       boost::asio::ip::tcp::no_delay{false},
       ec
     );
-    if (ec.value())
-      return false;
+    if (ec.value()) {
+      MWARNING("TCP_NODELAY setsockopt failed: " << ec.message() << "; continuing without changing NODELAY");
+    }
     connection_basic::m_is_multithreaded = is_multithreaded;
     m_conn_context.set_details(
       boost::uuids::random_generator()(),
