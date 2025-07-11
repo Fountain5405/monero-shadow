@@ -101,7 +101,8 @@ Blockchain::Blockchain(tx_memory_pool& tx_pool) :
   m_btc_valid(false),
   m_batch_success(true),
   m_prepare_height(0),
-  m_rct_ver_cache()
+  m_rct_ver_cache(),
+  m_simulation_mode(false)
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
 }
@@ -279,7 +280,7 @@ uint64_t Blockchain::get_current_blockchain_height() const
 //------------------------------------------------------------------
 //FIXME: possibly move this into the constructor, to avoid accidentally
 //       dereferencing a null BlockchainDB pointer
-bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline, const cryptonote::test_options *test_options, difficulty_type fixed_difficulty, const GetCheckpointsCallback& get_checkpoints/* = nullptr*/)
+bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline, const cryptonote::test_options *test_options, difficulty_type fixed_difficulty, const GetCheckpointsCallback& get_checkpoints/* = nullptr*/, bool simulation_mode/* = false*/)
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
 
@@ -304,6 +305,7 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
 
   m_nettype = test_options != NULL ? FAKECHAIN : nettype;
   m_offline = offline;
+  m_simulation_mode = simulation_mode;
   m_fixed_difficulty = fixed_difficulty;
   if (m_hardfork == nullptr)
   {
@@ -4104,7 +4106,7 @@ leave:
 
   // If we're at a checkpoint, ensure that our hardcoded checkpoint hash
   // is correct.
-  if(m_checkpoints.is_in_checkpoint_zone(blockchain_height) && !m_core.is_simulation_mode())
+  if(m_checkpoints.is_in_checkpoint_zone(blockchain_height) && !m_simulation_mode)
   {
     if(!m_checkpoints.check_block(blockchain_height, id))
     {

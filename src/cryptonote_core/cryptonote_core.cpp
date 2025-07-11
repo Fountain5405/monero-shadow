@@ -674,7 +674,7 @@ namespace cryptonote
       0
     };
     const difficulty_type fixed_difficulty = command_line::get_arg(vm, arg_fixed_difficulty);
-    r = m_blockchain_storage.init(db.release(), m_nettype, m_offline, regtest ? &regtest_test_options : test_options, fixed_difficulty, get_checkpoints);
+    r = m_blockchain_storage.init(db.release(), m_nettype, m_offline, regtest ? &regtest_test_options : test_options, fixed_difficulty, get_checkpoints, m_simulation_mode);
     CHECK_AND_ASSERT_MES(r, false, "Failed to initialize blockchain storage");
 
     r = m_mempool.init(max_txpool_weight, m_nettype == FAKECHAIN);
