@@ -4104,7 +4104,7 @@ leave:
 
   // If we're at a checkpoint, ensure that our hardcoded checkpoint hash
   // is correct.
-  if(m_checkpoints.is_in_checkpoint_zone(blockchain_height))
+  if(m_checkpoints.is_in_checkpoint_zone(blockchain_height) && !m_core.is_simulation_mode())
   {
     if(!m_checkpoints.check_block(blockchain_height, id))
     {

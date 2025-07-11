@@ -821,6 +821,13 @@ namespace cryptonote
      bool get_simulation_mode() const { return m_simulation_mode; };
 
      /**
+      * @brief check if simulation mode is enabled
+      *
+      * @return whether simulation mode is enabled
+      */
+     bool is_simulation_mode() const { return m_simulation_mode; };
+
+     /**
       * @brief check whether an update is known to be available or not
       *
       * This does not actually trigger a check, but returns the result
