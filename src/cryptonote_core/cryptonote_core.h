@@ -65,7 +65,8 @@ namespace cryptonote
   extern const command_line::arg_descriptor<std::string, false, true, 2> arg_data_dir;
   extern const command_line::arg_descriptor<bool, false> arg_testnet_on;
   extern const command_line::arg_descriptor<bool, false> arg_stagenet_on;
-  extern const command_line::arg_descriptor<bool, false> arg_regtest_on;
+  extern const command_line::arg_descriptor<bool> arg_regtest_on;
+  extern const command_line::arg_descriptor<bool> arg_simulation_on;
   extern const command_line::arg_descriptor<difficulty_type> arg_fixed_difficulty;
   extern const command_line::arg_descriptor<bool> arg_offline;
   extern const command_line::arg_descriptor<size_t> arg_block_download_max_size;
@@ -813,6 +814,13 @@ namespace cryptonote
      network_type get_nettype() const { return m_nettype; };
 
      /**
+      * @brief get whether simulation mode is enabled
+      *
+      * @return whether simulation mode is enabled
+      */
+     bool get_simulation_mode() const { return m_simulation_mode; };
+
+     /**
       * @brief check whether an update is known to be available or not
       *
       * This does not actually trigger a check, but returns the result
@@ -1087,6 +1095,8 @@ namespace cryptonote
      uint64_t m_target_blockchain_height; //!< blockchain height target
 
      network_type m_nettype; //!< which network are we on?
+
+     bool m_simulation_mode; //!< whether simulation mode is enabled
 
      std::atomic<bool> m_update_available;
 

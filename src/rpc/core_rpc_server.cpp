@@ -479,6 +479,10 @@ namespace cryptonote
   {
     if(!m_p2p.get_payload_object().is_synchronized())
     {
+      // Allow block generation in simulation mode even if not synchronized
+      if (m_core.get_simulation_mode()) {
+        return true;
+      }
       return false;
     }
     return true;
@@ -2304,10 +2308,10 @@ namespace cryptonote
     
     res.status = CORE_RPC_STATUS_OK;
 
-    if(m_core.get_nettype() != FAKECHAIN)
+    if(m_core.get_nettype() != FAKECHAIN && !m_core.get_simulation_mode())
     {
       error_resp.code = CORE_RPC_ERROR_CODE_REGTEST_REQUIRED;
-      error_resp.message = "Regtest required when generating blocks";      
+      error_resp.message = "Regtest or simulation mode required when generating blocks";      
       return false;
     }
 

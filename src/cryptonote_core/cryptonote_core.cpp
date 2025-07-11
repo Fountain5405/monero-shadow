@@ -88,6 +88,11 @@ namespace cryptonote
   , "Run in a regression testing mode."
   , false
   };
+  const command_line::arg_descriptor<bool> arg_simulation_on  = {
+    "simulation"
+  , "Run in simulation mode for Shadow network simulator."
+  , false
+  };
   const command_line::arg_descriptor<bool> arg_keep_fakechain = {
     "keep-fakechain"
   , "Don't delete any existing database when in fakechain mode."
@@ -230,6 +235,7 @@ namespace cryptonote
               m_disable_dns_checkpoints(false),
               m_update_download(0),
               m_nettype(UNDEFINED),
+              m_simulation_mode(false),
               m_update_available(false)
   {
     m_checkpoints_updating.clear();
@@ -316,6 +322,7 @@ namespace cryptonote
     command_line::add_arg(desc, arg_testnet_on);
     command_line::add_arg(desc, arg_stagenet_on);
     command_line::add_arg(desc, arg_regtest_on);
+    command_line::add_arg(desc, arg_simulation_on);
     command_line::add_arg(desc, arg_keep_fakechain);
     command_line::add_arg(desc, arg_fixed_difficulty);
     command_line::add_arg(desc, arg_dns_checkpoints);
@@ -373,6 +380,12 @@ namespace cryptonote
     test_drop_download_height(command_line::get_arg(vm, arg_test_drop_download_height));
     m_offline = get_arg(vm, arg_offline);
     m_disable_dns_checkpoints = get_arg(vm, arg_disable_dns_checkpoints);
+    m_simulation_mode = get_arg(vm, arg_simulation_on);
+    
+    // Disable DNS checkpoints in simulation mode
+    if (m_simulation_mode) {
+      m_disable_dns_checkpoints = true;
+    }
 
     if (command_line::get_arg(vm, arg_test_drop_download) == true)
       test_drop_download();
@@ -1799,7 +1812,7 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::check_block_rate()
   {
-    if (m_offline || m_nettype == FAKECHAIN || m_target_blockchain_height > get_current_blockchain_height() || m_target_blockchain_height == 0)
+    if (m_offline || m_nettype == FAKECHAIN || m_simulation_mode || m_target_blockchain_height > get_current_blockchain_height() || m_target_blockchain_height == 0)
     {
       MDEBUG("Not checking block rate, offline or syncing");
       return true;
