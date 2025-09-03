@@ -65,7 +65,8 @@ namespace cryptonote
   extern const command_line::arg_descriptor<std::string, false, true, 2> arg_data_dir;
   extern const command_line::arg_descriptor<bool, false> arg_testnet_on;
   extern const command_line::arg_descriptor<bool, false> arg_stagenet_on;
-  extern const command_line::arg_descriptor<bool, false> arg_regtest_on;
+  extern const command_line::arg_descriptor<bool> arg_regtest_on;
+  extern const command_line::arg_descriptor<bool> arg_private_testnet_on;
   extern const command_line::arg_descriptor<difficulty_type> arg_fixed_difficulty;
   extern const command_line::arg_descriptor<bool> arg_offline;
   extern const command_line::arg_descriptor<size_t> arg_block_download_max_size;
@@ -813,6 +814,20 @@ namespace cryptonote
      network_type get_nettype() const { return m_nettype; };
 
      /**
+      * @brief get whether private testnet mode is enabled
+      *
+      * @return whether private testnet mode is enabled
+      */
+     bool get_private_testnet_mode() const { return m_private_testnet_mode; };
+
+     /**
+      * @brief check if private testnet mode is enabled
+      *
+      * @return whether private testnet mode is enabled
+      */
+     bool is_private_testnet_mode() const { return m_private_testnet_mode; };
+
+     /**
       * @brief check whether an update is known to be available or not
       *
       * This does not actually trigger a check, but returns the result
@@ -1087,6 +1102,8 @@ namespace cryptonote
      uint64_t m_target_blockchain_height; //!< blockchain height target
 
      network_type m_nettype; //!< which network are we on?
+
+     bool m_private_testnet_mode; //!< whether private testnet mode is enabled
 
      std::atomic<bool> m_update_available;
 

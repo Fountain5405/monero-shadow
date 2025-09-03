@@ -88,6 +88,11 @@ namespace cryptonote
   , "Run in a regression testing mode."
   , false
   };
+  const command_line::arg_descriptor<bool> arg_private_testnet_on  = {
+    "private-testnet"
+  , "Run in private testnet mode for Shadow network simulator."
+  , false
+  };
   const command_line::arg_descriptor<bool> arg_keep_fakechain = {
     "keep-fakechain"
   , "Don't delete any existing database when in fakechain mode."
@@ -230,6 +235,7 @@ namespace cryptonote
               m_disable_dns_checkpoints(false),
               m_update_download(0),
               m_nettype(UNDEFINED),
+              m_private_testnet_mode(false),
               m_update_available(false)
   {
     m_checkpoints_updating.clear();
@@ -316,6 +322,7 @@ namespace cryptonote
     command_line::add_arg(desc, arg_testnet_on);
     command_line::add_arg(desc, arg_stagenet_on);
     command_line::add_arg(desc, arg_regtest_on);
+    command_line::add_arg(desc, arg_private_testnet_on);
     command_line::add_arg(desc, arg_keep_fakechain);
     command_line::add_arg(desc, arg_fixed_difficulty);
     command_line::add_arg(desc, arg_dns_checkpoints);
@@ -353,7 +360,7 @@ namespace cryptonote
 
     auto data_dir = boost::filesystem::path(m_config_folder);
 
-    if (m_nettype == MAINNET)
+    if (m_nettype == MAINNET && !m_private_testnet_mode)
     {
       cryptonote::checkpoints checkpoints;
       if (!checkpoints.init_default_checkpoints(m_nettype))
@@ -373,6 +380,14 @@ namespace cryptonote
     test_drop_download_height(command_line::get_arg(vm, arg_test_drop_download_height));
     m_offline = get_arg(vm, arg_offline);
     m_disable_dns_checkpoints = get_arg(vm, arg_disable_dns_checkpoints);
+    m_private_testnet_mode = get_arg(vm, arg_private_testnet_on);
+
+    // Disable DNS checkpoints in private testnet mode
+    if (m_private_testnet_mode) {
+      m_disable_dns_checkpoints = true;
+      // Also disable hardcoded checkpoints by not initializing them
+      MINFO("Private testnet mode: Disabling all checkpoint validation");
+    }
 
     if (command_line::get_arg(vm, arg_test_drop_download) == true)
       test_drop_download();
@@ -659,7 +674,7 @@ namespace cryptonote
       0
     };
     const difficulty_type fixed_difficulty = command_line::get_arg(vm, arg_fixed_difficulty);
-    r = m_blockchain_storage.init(db.release(), m_nettype, m_offline, regtest ? &regtest_test_options : test_options, fixed_difficulty, get_checkpoints);
+    r = m_blockchain_storage.init(db.release(), m_nettype, m_offline, regtest ? &regtest_test_options : test_options, fixed_difficulty, get_checkpoints, m_private_testnet_mode);
     CHECK_AND_ASSERT_MES(r, false, "Failed to initialize blockchain storage");
 
     r = m_mempool.init(max_txpool_weight, m_nettype == FAKECHAIN);
@@ -1574,13 +1589,15 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::on_idle()
   {
-    if(!m_starter_message_showed)
-    {
-      std::string main_message;
-      if (m_offline)
-        main_message = "The daemon is running offline and will not attempt to sync to the Monero network.";
-      else
-        main_message = "The daemon will start synchronizing with the network. This may take a long time to complete.";
+      if(!m_starter_message_showed)
+  {
+    std::string main_message;
+    if (m_offline)
+      main_message = "The daemon is running offline and will not attempt to sync to the Monero network.";
+    else if (m_private_testnet_mode)
+      main_message = "The daemon is running in private testnet mode for Shadow network simulator.";
+    else
+      main_message = "The daemon will start synchronizing with the network. This may take a long time to complete.";
       MGINFO_YELLOW(ENDL << "**********************************************************************" << ENDL
         << main_message << ENDL
         << ENDL
@@ -1799,7 +1816,7 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::check_block_rate()
   {
-    if (m_offline || m_nettype == FAKECHAIN || m_target_blockchain_height > get_current_blockchain_height() || m_target_blockchain_height == 0)
+    if (m_offline || m_nettype == FAKECHAIN || m_private_testnet_mode || m_target_blockchain_height > get_current_blockchain_height() || m_target_blockchain_height == 0)
     {
       MDEBUG("Not checking block rate, offline or syncing");
       return true;

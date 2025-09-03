@@ -58,6 +58,7 @@
 #include "cryptonote_core/cryptonote_core.h"
 #include "net/parse.h"
 #include "p2p/net_node.h"
+#include "p2p/net_node.cpp"
 
 #include <miniupnp/miniupnpc/miniupnpc.h>
 #include <miniupnp/miniupnpc/upnpcommands.h>
@@ -118,6 +119,7 @@ namespace nodetool
     command_line::add_arg(desc, arg_p2p_hide_my_port);
     command_line::add_arg(desc, arg_no_sync);
     command_line::add_arg(desc, arg_enable_dns_blocklist);
+    command_line::add_arg(desc, arg_disable_seed_nodes);
     command_line::add_arg(desc, arg_no_igd);
     command_line::add_arg(desc, arg_igd);
     command_line::add_arg(desc, arg_out_peers);
@@ -227,20 +229,15 @@ namespace nodetool
   template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::is_host_limit(const epee::net_utils::network_address &address)
   {
-    const network_zone& zone = m_network_zones.at(address.get_zone());
-    if (zone.m_current_number_of_in_peers >= zone.m_config.m_net_config.max_in_connection_count) // in peers limit
-    {
-      MWARNING("Exceeded max incoming connections, so dropping this one.");
-      return true;
-    }
+    /*
+       In a Shadow private testnet we often run many Monero nodes behind the same virtual IP
+       subnet and iterate connections very quickly.  The usual per-host or per-subnet
+       connection limits cause every new connection to be dropped immediately, preventing
+       the network from forming.  For private testnet purposes we disable these limits entirely.
+     */
 
-    if(has_too_many_connections(address))
-    {
-      MWARNING("CONNECTION FROM " << address.host_str() << " REFUSED, too many connections from the same address");
-      return true;
-    }
-
-    return false;
+    (void)address; // unused when limits are ignored
+    return false; // always allow
   }
 
   //-----------------------------------------------------------------------------------
@@ -472,6 +469,7 @@ namespace nodetool
     m_offline = command_line::get_arg(vm, cryptonote::arg_offline);
     m_use_ipv6 = command_line::get_arg(vm, arg_p2p_use_ipv6);
     m_require_ipv4 = !command_line::get_arg(vm, arg_p2p_ignore_ipv4);
+    m_disable_seed_nodes = command_line::get_arg(vm, arg_disable_seed_nodes);
     public_zone.m_notifier = cryptonote::levin::notify{
       public_zone.m_net_server.get_io_context(), public_zone.m_net_server.get_config_shared(), nullptr, epee::net_utils::zone::public_, pad_txs, m_payload_handler.get_core()
     };
@@ -778,7 +776,7 @@ namespace nodetool
     if (!m_enable_dns_seed_nodes)
     {
       // TODO: a domain can be set through socks, so that the remote side does the lookup for the DNS seed nodes.
-      m_fallback_seed_nodes_added.test_and_set();
+      m_fallback_seed_nodes_added.exchange(true);
       return get_ip_seed_nodes();
     }
 
@@ -869,7 +867,7 @@ namespace nodetool
 
       for (const auto &peer: get_ip_seed_nodes())
         full_addrs.insert(peer);
-      m_fallback_seed_nodes_added.test_and_set();
+      m_fallback_seed_nodes_added.exchange(true);
     }
 
     return full_addrs;
@@ -1059,7 +1057,7 @@ namespace nodetool
             {
               ++number_of_in_peers;
             }
-            else if (!cntxt.is_ping)
+            else
             {
               ++number_of_out_peers;
             }
@@ -1327,7 +1325,7 @@ namespace nodetool
     bool used = false;
     server->second.m_net_server.get_config_object().foreach_connection([&, is_public](const p2p_connection_context& cntxt)
     {
-      if((is_public && cntxt.peer_id == peer.id && peer.adr.is_same_host(cntxt.m_remote_address)) || (!cntxt.m_is_income && peer.adr == cntxt.m_remote_address))
+      if((is_public && cntxt.peer_id == peer.id) || (!cntxt.m_is_income && peer.adr == cntxt.m_remote_address))
       {
         used = true;
         return false;//stop enumerating
@@ -1352,7 +1350,7 @@ namespace nodetool
     bool used = false;
     server->second.m_net_server.get_config_object().foreach_connection([&, is_public](const p2p_connection_context& cntxt)
     {
-      if((is_public && cntxt.peer_id == peer.id && peer.adr.is_same_host(cntxt.m_remote_address)) || (!cntxt.m_is_income && peer.adr == cntxt.m_remote_address))
+      if((is_public && cntxt.peer_id == peer.id) || (!cntxt.m_is_income && peer.adr == cntxt.m_remote_address))
       {
         used = true;
         return false;//stop enumerating
@@ -1395,6 +1393,21 @@ namespace nodetool
   template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::try_to_connect_and_handshake_with_new_peer(const epee::net_utils::network_address& na, bool just_take_peerlist, uint64_t last_seen_stamp, PeerType peer_type, uint64_t first_seen_stamp)
   {
+    {
+      boost::lock_guard<boost::mutex> lock(m_connecting_peers_mutex);
+      if(m_connecting_peers.count(na))
+      {
+        MDEBUG("Already connecting to " << na.str());
+        return false;
+      }
+      m_connecting_peers.insert(na);
+    }
+
+    epee::misc_utils::auto_scope_leave_caller scope_exit_handler = epee::misc_utils::create_scope_leave_handler([&](){
+      boost::lock_guard<boost::mutex> lock(m_connecting_peers_mutex);
+      m_connecting_peers.erase(na);
+    });
+
     network_zone& zone = m_network_zones.at(na.get_zone());
     if (zone.m_connect == nullptr) // outgoing connections in zone not possible
       return false;
@@ -1779,7 +1792,7 @@ namespace nodetool
         MDEBUG("Number of seed nodes: " << server.m_seed_nodes.size());
       }
 
-      if (server.m_seed_nodes.empty() || m_offline || !m_exclusive_peers.empty())
+      if (server.m_seed_nodes.empty() || m_offline || !m_exclusive_peers.empty() || m_disable_seed_nodes)
         return true;
 
       size_t try_count = 0;
@@ -1799,7 +1812,7 @@ namespace nodetool
         if(++try_count > server.m_seed_nodes.size())
         {
           // only IP zone has fallback (to direct IP) seeds
-          if (zone == epee::net_utils::zone::public_ && !m_fallback_seed_nodes_added.test_and_set())
+          if (zone == epee::net_utils::zone::public_ && !m_fallback_seed_nodes_added.exchange(true))
           {
             MWARNING("Failed to connect to any of seed peers, trying fallback seeds");
             current_index = server.m_seed_nodes.size() - 1;
@@ -1970,7 +1983,7 @@ namespace nodetool
     size_t count = 0;
     zone.m_net_server.get_config_object().foreach_connection([&](const p2p_connection_context& cntxt)
     {
-      if(!cntxt.m_is_income && !cntxt.is_ping)
+      if(!cntxt.m_is_income)
         ++count;
       return true;
     });
@@ -2451,7 +2464,7 @@ namespace nodetool
         return false;
       }
       return true;
-    }, "0.0.0.0", m_ssl_support, p2p_connection_context{true /* is_ping */});
+    }, "0.0.0.0", m_ssl_support);
     if(!r)
     {
       LOG_WARNING_CC(context, "Failed to call connect_async, network error.");
