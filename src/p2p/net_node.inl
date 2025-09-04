@@ -776,7 +776,7 @@ namespace nodetool
     if (!m_enable_dns_seed_nodes)
     {
       // TODO: a domain can be set through socks, so that the remote side does the lookup for the DNS seed nodes.
-      m_fallback_seed_nodes_added.exchange(true);
+      m_fallback_seed_nodes_added.test_and_set();
       return get_ip_seed_nodes();
     }
 
@@ -867,7 +867,7 @@ namespace nodetool
 
       for (const auto &peer: get_ip_seed_nodes())
         full_addrs.insert(peer);
-      m_fallback_seed_nodes_added.exchange(true);
+      m_fallback_seed_nodes_added.test_and_set();
     }
 
     return full_addrs;
@@ -1812,7 +1812,7 @@ namespace nodetool
         if(++try_count > server.m_seed_nodes.size())
         {
           // only IP zone has fallback (to direct IP) seeds
-          if (zone == epee::net_utils::zone::public_ && !m_fallback_seed_nodes_added.exchange(true))
+          if (zone == epee::net_utils::zone::public_ && !m_fallback_seed_nodes_added.test_and_set())
           {
             MWARNING("Failed to connect to any of seed peers, trying fallback seeds");
             current_index = server.m_seed_nodes.size() - 1;

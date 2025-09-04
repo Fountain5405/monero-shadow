@@ -520,6 +520,10 @@ namespace nodetool
 
     bool m_enable_dns_seed_nodes;
     bool m_enable_dns_blocklist;
+    bool m_disable_seed_nodes;
+
+    boost::mutex m_connecting_peers_mutex;
+    std::set<epee::net_utils::network_address> m_connecting_peers;
 
     uint32_t max_connections;
   };

@@ -279,11 +279,7 @@ uint64_t Blockchain::get_current_blockchain_height() const
 //------------------------------------------------------------------
 //FIXME: possibly move this into the constructor, to avoid accidentally
 //       dereferencing a null BlockchainDB pointer
-<<<<<<< HEAD
-bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline, const cryptonote::test_options *test_options, difficulty_type fixed_difficulty, const GetCheckpointsCallback& get_checkpoints/* = nullptr*/)
-=======
 bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline, const cryptonote::test_options *test_options, difficulty_type fixed_difficulty, const GetCheckpointsCallback& get_checkpoints/* = nullptr*/, bool private_testnet_mode/* = false*/)
->>>>>>> 023b1eabe (Apply testnet startup modifications with --private-testnet flag rename)
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
 
@@ -308,10 +304,7 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
 
   m_nettype = test_options != NULL ? FAKECHAIN : nettype;
   m_offline = offline;
-<<<<<<< HEAD
-=======
   m_private_testnet_mode = private_testnet_mode;
->>>>>>> 023b1eabe (Apply testnet startup modifications with --private-testnet flag rename)
   m_fixed_difficulty = fixed_difficulty;
   if (m_hardfork == nullptr)
   {
@@ -4112,11 +4105,7 @@ leave:
 
   // If we're at a checkpoint, ensure that our hardcoded checkpoint hash
   // is correct.
-<<<<<<< HEAD
-  if(m_checkpoints.is_in_checkpoint_zone(blockchain_height))
-=======
-  if(m_checkpoints.is_in_checkpoint_zone(blockchain_height) && !m_private_testnet_mode)
->>>>>>> 023b1eabe (Apply testnet startup modifications with --private-testnet flag rename)
+   if(m_checkpoints.is_in_checkpoint_zone(blockchain_height) && !m_private_testnet_mode)
   {
     if(!m_checkpoints.check_block(blockchain_height, id))
     {
