@@ -11,7 +11,12 @@ Monero uses scheduled hardforks to implement new features, improve security, and
 ### Activation Details
 - **Block Height**: 2789608 (mainnet), 2083520 (testnet), 1251720 (stagenet)
 - **Activation Time**: October 17, 2024 (estimated)
-- **Timestamp**: 1756928243
+- **Timestamp**: 1726780800
+
+### Alternative Activation Method
+- **Runtime Flag**: `--pop-enabled`
+- **Description**: PoP consensus rules can be activated immediately using the `--pop-enabled` runtime flag, bypassing the need to wait for hardfork 17 activation
+- **Use Case**: Testing, development, or early adoption of PoP features before the scheduled hardfork
 
 ### New Features in Hardfork 17
 

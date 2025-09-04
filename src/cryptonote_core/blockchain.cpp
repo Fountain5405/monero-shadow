@@ -84,6 +84,7 @@ DISABLE_VS_WARNINGS(4267)
 
 #define MERROR_VER(x) MCERROR("verify", x)
 
+
 // used to overestimate the block reward when estimating a per kB to use
 #define BLOCK_REWARD_OVERESTIMATE (10 * 1000000000000)
 
@@ -110,6 +111,12 @@ Blockchain::~Blockchain()
 {
   try { deinit(); }
   catch (const std::exception &e) { /* ignore */ }
+}
+//------------------------------------------------------------------
+bool Blockchain::is_pop_active(uint64_t height) const
+{
+  uint8_t hf_version = m_hardfork->get_current_version();
+  return (hf_version >= 17) || m_pop_enabled;
 }
 //------------------------------------------------------------------
 bool Blockchain::have_tx(const crypto::hash &id) const
@@ -279,7 +286,7 @@ uint64_t Blockchain::get_current_blockchain_height() const
 //------------------------------------------------------------------
 //FIXME: possibly move this into the constructor, to avoid accidentally
 //       dereferencing a null BlockchainDB pointer
-bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline, const cryptonote::test_options *test_options, difficulty_type fixed_difficulty, const GetCheckpointsCallback& get_checkpoints/* = nullptr*/, bool private_testnet_mode/* = false*/)
+bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline, const cryptonote::test_options *test_options, difficulty_type fixed_difficulty, const GetCheckpointsCallback& get_checkpoints/* = nullptr*/, bool private_testnet_mode/* = false*/, bool pop_enabled/* = false*/)
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
 
@@ -306,6 +313,10 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
   m_offline = offline;
   m_private_testnet_mode = private_testnet_mode;
   m_fixed_difficulty = fixed_difficulty;
+  m_pop_enabled = pop_enabled;
+
+  // Initialize PoP-related state if needed
+  // TODO: Initialize PoP data structures when PoP implementation is added
   if (m_hardfork == nullptr)
   {
     if (m_nettype ==  FAKECHAIN || m_nettype == STAGENET)

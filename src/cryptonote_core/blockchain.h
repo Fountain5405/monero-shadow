@@ -131,7 +131,7 @@ namespace cryptonote
      *
      * @return true on success, false if any initialization steps fail
      */
-    bool init(BlockchainDB* db, const network_type nettype = MAINNET, bool offline = false, const cryptonote::test_options *test_options = NULL, difficulty_type fixed_difficulty = 0, const GetCheckpointsCallback& get_checkpoints = nullptr, bool private_testnet_mode = false);
+    bool init(BlockchainDB* db, const network_type nettype = MAINNET, bool offline = false, const cryptonote::test_options *test_options = NULL, difficulty_type fixed_difficulty = 0, const GetCheckpointsCallback& get_checkpoints = nullptr, bool private_testnet_mode = false, bool pop_enabled = false);
 
     /**
      * @brief Initialize the Blockchain state
@@ -1136,13 +1136,26 @@ namespace cryptonote
      * onto the current block to get an 'adjusted median time' which approximates
      * what the current block's timestamp should be. Also projects the previous
      * block's timestamp to estimate the current block's timestamp.
-     * 
+     *
      * Returns the minimum of the two projections, or the current local time on
      * the machine if less than 60 blocks are available.
      *
      * @return current time approximated from chain data
      */
     uint64_t get_adjusted_time(uint64_t height) const;
+
+    /**
+     * @brief check if PoP rules should be active
+     *
+     * PoP rules are active if either:
+     * 1. Hardfork version >= 17 (original activation method)
+     * 2. Runtime flag --pop-enabled is set
+     *
+     * @param height the block height to check
+     *
+     * @return true if PoP rules should be active, false otherwise
+     */
+    bool is_pop_active(uint64_t height) const;
 
 #ifndef IN_UNIT_TESTS
   private:
@@ -1215,6 +1228,7 @@ namespace cryptonote
     bool m_offline;
     bool m_private_testnet_mode;
     difficulty_type m_fixed_difficulty;
+    bool m_pop_enabled;
 
     std::atomic<bool> m_cancel;
 

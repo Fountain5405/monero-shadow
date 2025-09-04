@@ -133,6 +133,11 @@ namespace cryptonote
     "sync-pruned-blocks"
   , "Allow syncing from nodes with only pruned blocks"
   };
+  const command_line::arg_descriptor<bool> arg_pop_enabled  = {
+    "pop-enabled"
+  , "Enable Proof of Proof (PoP) consensus rules"
+  , false
+  };
 
   static const command_line::arg_descriptor<bool> arg_test_drop_download = {
     "test-drop-download"
@@ -236,7 +241,8 @@ namespace cryptonote
               m_update_download(0),
               m_nettype(UNDEFINED),
               m_private_testnet_mode(false),
-              m_update_available(false)
+              m_update_available(false),
+              m_pop_enabled(false)
   {
     m_checkpoints_updating.clear();
     set_cryptonote_protocol(pprotocol);
@@ -342,6 +348,7 @@ namespace cryptonote
     command_line::add_arg(desc, arg_reorg_notify);
     command_line::add_arg(desc, arg_block_rate_notify);
     command_line::add_arg(desc, arg_keep_alt_blocks);
+    command_line::add_arg(desc, arg_pop_enabled);
 
     miner::init_options(desc);
     BlockchainDB::init_options(desc);
@@ -381,6 +388,7 @@ namespace cryptonote
     m_offline = get_arg(vm, arg_offline);
     m_disable_dns_checkpoints = get_arg(vm, arg_disable_dns_checkpoints);
     m_private_testnet_mode = get_arg(vm, arg_private_testnet_on);
+    m_pop_enabled = get_arg(vm, arg_pop_enabled);
 
     // Disable DNS checkpoints in private testnet mode
     if (m_private_testnet_mode) {
@@ -674,7 +682,7 @@ namespace cryptonote
       0
     };
     const difficulty_type fixed_difficulty = command_line::get_arg(vm, arg_fixed_difficulty);
-    r = m_blockchain_storage.init(db.release(), m_nettype, m_offline, regtest ? &regtest_test_options : test_options, fixed_difficulty, get_checkpoints, m_private_testnet_mode);
+    r = m_blockchain_storage.init(db.release(), m_nettype, m_offline, regtest ? &regtest_test_options : test_options, fixed_difficulty, get_checkpoints, m_private_testnet_mode, m_pop_enabled);
     CHECK_AND_ASSERT_MES(r, false, "Failed to initialize blockchain storage");
 
     r = m_mempool.init(max_txpool_weight, m_nettype == FAKECHAIN);

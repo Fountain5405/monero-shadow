@@ -1131,6 +1131,8 @@ namespace cryptonote
 
      bool m_offline;
 
+     bool m_pop_enabled; //!< whether PoP consensus rules are enabled
+
      std::shared_ptr<tools::Notify> m_block_rate_notify;
    };
 }

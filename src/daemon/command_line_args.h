@@ -138,6 +138,12 @@ namespace daemon_args
   , "Disable ZMQ RPC server"
   };
 
+  const command_line::arg_descriptor<bool> arg_pop_enabled = {
+    "pop-enabled"
+  , "Enable Proof of Proof (PoP) consensus rules"
+  , false
+  };
+
 }  // namespace daemon_args
 
 #endif // DAEMON_COMMAND_LINE_ARGS_H
