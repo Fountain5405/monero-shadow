@@ -82,7 +82,8 @@ public:
       boost::program_options::variables_map const & vm
     )
     : core{vm}
-    , protocol{vm, core, command_line::get_arg(vm, cryptonote::arg_offline)}
+    // For regtest/fakechain mode, consider the node synchronized immediately since there's no network to sync with
+    , protocol{vm, core, command_line::get_arg(vm, cryptonote::arg_offline) || command_line::get_arg(vm, cryptonote::arg_regtest_on)}
     , p2p{vm, protocol}
     , zmq{nullptr}
   {
