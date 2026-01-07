@@ -61,6 +61,8 @@
   #include <time.h>
   #include <sys/socket.h>
   #include <sys/un.h>
+  #include <netinet/in.h>
+  #include <arpa/inet.h>
 #elif defined(__FreeBSD__)
   #include <devstat.h>
   #include <errno.h>
@@ -105,6 +107,9 @@ namespace cryptonote
     const command_line::arg_descriptor<uint16_t>     arg_bg_mining_miner_target_percentage =  {"bg-mining-miner-target", "Specify maximum percentage cpu use by miner(s)", miner::BACKGROUND_MINING_DEFAULT_MINING_TARGET_PERCENTAGE, true};
     const command_line::arg_descriptor<bool>        arg_simulation_mode = {"simulation-mode", "Enable simulation mode for Shadow network simulation (disables real PoW)", false, true};
     const command_line::arg_descriptor<std::string> arg_simulation_socket = {"simulation-socket", "Unix socket path for simulation mining agent", "/tmp/monerosim_mining.sock", true};
+    const command_line::arg_descriptor<bool>        arg_simulation_tcp = {"simulation-tcp", "Use TCP instead of Unix socket (required for Shadow)", false, true};
+    const command_line::arg_descriptor<std::string> arg_simulation_host = {"simulation-host", "TCP host for simulation mining agent", "127.0.0.1", true};
+    const command_line::arg_descriptor<uint16_t>    arg_simulation_port = {"simulation-port", "TCP port for simulation mining agent", 18888, true};
   }
 
 
@@ -134,7 +139,10 @@ namespace cryptonote
     m_block_reward(0),
     m_simulation_mode(false),
     m_simulation_socket_fd(-1),
-    m_simulation_socket_path("/tmp/monerosim_mining.sock")
+    m_simulation_socket_path("/tmp/monerosim_mining.sock"),
+    m_simulation_tcp(false),
+    m_simulation_host("127.0.0.1"),
+    m_simulation_port(18888)
   {
     m_attrs.set_stack_size(THREAD_STACK_SIZE);
   }
@@ -304,6 +312,9 @@ namespace cryptonote
     command_line::add_arg(desc, arg_bg_mining_miner_target_percentage);
     command_line::add_arg(desc, arg_simulation_mode);
     command_line::add_arg(desc, arg_simulation_socket);
+    command_line::add_arg(desc, arg_simulation_tcp);
+    command_line::add_arg(desc, arg_simulation_host);
+    command_line::add_arg(desc, arg_simulation_port);
   }
   //-----------------------------------------------------------------------------------------------------
   bool miner::init(const boost::program_options::variables_map& vm, network_type nettype)
@@ -367,11 +378,20 @@ namespace cryptonote
       m_simulation_mode = command_line::get_arg(vm, arg_simulation_mode);
     if(command_line::has_arg(vm, arg_simulation_socket))
       m_simulation_socket_path = command_line::get_arg(vm, arg_simulation_socket);
+    if(command_line::has_arg(vm, arg_simulation_tcp))
+      m_simulation_tcp = command_line::get_arg(vm, arg_simulation_tcp);
+    if(command_line::has_arg(vm, arg_simulation_host))
+      m_simulation_host = command_line::get_arg(vm, arg_simulation_host);
+    if(command_line::has_arg(vm, arg_simulation_port))
+      m_simulation_port = command_line::get_arg(vm, arg_simulation_port);
 
     if(m_simulation_mode)
     {
       MGINFO_YELLOW("*** SIMULATION MODE ENABLED ***");
-      MGINFO_YELLOW("Mining will use external agent via socket: " << m_simulation_socket_path);
+      if(m_simulation_tcp)
+        MGINFO_YELLOW("Mining will use external agent via TCP: " << m_simulation_host << ":" << m_simulation_port);
+      else
+        MGINFO_YELLOW("Mining will use external agent via Unix socket: " << m_simulation_socket_path);
       MGINFO_YELLOW("Real Proof-of-Work is DISABLED");
     }
 
@@ -1221,27 +1241,64 @@ namespace cryptonote
     if (m_simulation_socket_fd >= 0)
       return true; // Already connected
 
-    m_simulation_socket_fd = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (m_simulation_socket_fd < 0)
+    if (m_simulation_tcp)
     {
-      MERROR("Simulation mode: socket() failed: " << strerror(errno));
-      return false;
+      // TCP socket for Shadow compatibility
+      m_simulation_socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+      if (m_simulation_socket_fd < 0)
+      {
+        MERROR("Simulation mode: socket(TCP) failed: " << strerror(errno));
+        return false;
+      }
+
+      struct sockaddr_in addr;
+      memset(&addr, 0, sizeof(addr));
+      addr.sin_family = AF_INET;
+      addr.sin_port = htons(m_simulation_port);
+      if (inet_pton(AF_INET, m_simulation_host.c_str(), &addr.sin_addr) <= 0)
+      {
+        MERROR("Simulation mode: invalid host address: " << m_simulation_host);
+        close(m_simulation_socket_fd);
+        m_simulation_socket_fd = -1;
+        return false;
+      }
+
+      if (connect(m_simulation_socket_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0)
+      {
+        MERROR("Simulation mode: connect() to " << m_simulation_host << ":" << m_simulation_port << " failed: " << strerror(errno));
+        close(m_simulation_socket_fd);
+        m_simulation_socket_fd = -1;
+        return false;
+      }
+
+      MINFO("Simulation mode: connected to mining agent at " << m_simulation_host << ":" << m_simulation_port);
+    }
+    else
+    {
+      // Unix socket (original implementation)
+      m_simulation_socket_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+      if (m_simulation_socket_fd < 0)
+      {
+        MERROR("Simulation mode: socket(Unix) failed: " << strerror(errno));
+        return false;
+      }
+
+      struct sockaddr_un addr;
+      memset(&addr, 0, sizeof(addr));
+      addr.sun_family = AF_UNIX;
+      strncpy(addr.sun_path, m_simulation_socket_path.c_str(), sizeof(addr.sun_path) - 1);
+
+      if (connect(m_simulation_socket_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0)
+      {
+        MERROR("Simulation mode: connect() to " << m_simulation_socket_path << " failed: " << strerror(errno));
+        close(m_simulation_socket_fd);
+        m_simulation_socket_fd = -1;
+        return false;
+      }
+
+      MINFO("Simulation mode: connected to mining agent at " << m_simulation_socket_path);
     }
 
-    struct sockaddr_un addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, m_simulation_socket_path.c_str(), sizeof(addr.sun_path) - 1);
-
-    if (connect(m_simulation_socket_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0)
-    {
-      MERROR("Simulation mode: connect() to " << m_simulation_socket_path << " failed: " << strerror(errno));
-      close(m_simulation_socket_fd);
-      m_simulation_socket_fd = -1;
-      return false;
-    }
-
-    MINFO("Simulation mode: connected to mining agent at " << m_simulation_socket_path);
     return true;
   }
   //-----------------------------------------------------------------------------------------------------

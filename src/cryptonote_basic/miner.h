@@ -182,6 +182,10 @@ namespace cryptonote
     bool m_simulation_mode;
     int m_simulation_socket_fd;
     std::string m_simulation_socket_path;
+    // TCP mode for Shadow (Shadow doesn't support Unix pathname sockets)
+    bool m_simulation_tcp;
+    std::string m_simulation_host;
+    uint16_t m_simulation_port;
     bool connect_simulation_socket();
     void disconnect_simulation_socket();
     bool simulation_find_nonce(block& b, const difficulty_type& diffic, uint32_t& nonce);
