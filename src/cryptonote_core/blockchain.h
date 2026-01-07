@@ -892,6 +892,15 @@ namespace cryptonote
     void set_show_time_stats(bool stats) { m_show_time_stats = stats; }
 
     /**
+     * @brief sets simulation mode for Shadow network simulation
+     *
+     * When enabled, PoW verification is bypassed for blocks
+     *
+     * @param mode the new simulation mode setting
+     */
+    void set_simulation_mode(bool mode) { m_simulation_mode = mode; }
+
+    /**
      * @brief gets the hardfork voting state object
      *
      * @return the HardFork object
@@ -1192,6 +1201,7 @@ namespace cryptonote
     blockchain_db_sync_mode m_db_sync_mode;
     bool m_fast_sync;
     bool m_show_time_stats;
+    bool m_simulation_mode;  // Shadow simulation mode - bypasses PoW verification
     bool m_db_default_sync;
     bool m_db_sync_on_blocks;
     uint64_t m_db_sync_threshold;
