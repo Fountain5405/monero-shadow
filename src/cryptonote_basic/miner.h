@@ -177,5 +177,13 @@ namespace cryptonote
     static uint8_t get_percent_of_total(uint64_t some_time, uint64_t total_time);
     static boost::logic::tribool on_battery_power();
     std::atomic<uint64_t> m_block_reward;
+
+    // Simulation mode for Shadow network simulation
+    bool m_simulation_mode;
+    int m_simulation_socket_fd;
+    std::string m_simulation_socket_path;
+    bool connect_simulation_socket();
+    void disconnect_simulation_socket();
+    bool simulation_find_nonce(block& b, const difficulty_type& diffic, uint32_t& nonce);
   };
 }
