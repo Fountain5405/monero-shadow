@@ -4900,6 +4900,8 @@ bool Blockchain::prepare_handle_incoming_blocks(const std::vector<block_complete
   //  txpool and blockchain locks were not held
 
   m_tx_pool.lock();
+  // unlock m_tx_pool if we return early (return false); on success paths
+  // (return true) we clear this so cleanup_handle_incoming_blocks unlocks instead
   bool unlock_on_exit = true;
   auto txpool_cleanup = epee::misc_utils::create_scope_leave_handler([&](){
     if (unlock_on_exit)

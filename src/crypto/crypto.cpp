@@ -643,7 +643,7 @@ POP_WARNINGS
   static inline size_t rs_comm_size(size_t pubs_count) {
     const size_t sz = pubs_count * sizeof(ec_point_pair);
     if (pubs_count != 0 && sz / pubs_count != sizeof(ec_point_pair))
-      return 0;
+      return 0; // overflow
     return sizeof(rs_comm) + sz;
   }
 

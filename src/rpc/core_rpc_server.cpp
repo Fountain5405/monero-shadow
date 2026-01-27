@@ -1439,6 +1439,7 @@ namespace cryptonote
       }
     }
 
+    // don't relay a tx we haven't been able to verify
     if (skip_validation)
     {
       res.status = CORE_RPC_STATUS_OK;
