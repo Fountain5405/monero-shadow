@@ -1401,18 +1401,19 @@ namespace cryptonote
   {
     if (!kept_by_block)
     {
-      const std::unordered_map<crypto::hash, std::tuple<bool, tx_verification_context, uint64_t, crypto::hash>>::const_iterator i = m_input_cache.find(txid);
+      const auto i = m_input_cache.find(txid);
       if (i != m_input_cache.end())
       {
         max_used_block_height = std::get<2>(i->second);
         max_used_block_id = std::get<3>(i->second);
+        valid_input_verification_id_inout = std::get<4>(i->second);
         tvc = std::get<1>(i->second);
         return std::get<0>(i->second);
       }
     }
     bool ret = m_blockchain.check_tx_inputs(get_tx(), max_used_block_height, max_used_block_id, tvc, valid_input_verification_id_inout, kept_by_block);
     if (!kept_by_block)
-      m_input_cache.insert(std::make_pair(txid, std::make_tuple(ret, tvc, max_used_block_height, max_used_block_id)));
+      m_input_cache.insert(std::make_pair(txid, std::make_tuple(ret, tvc, max_used_block_height, max_used_block_id, valid_input_verification_id_inout)));
     return ret;
   }
   //---------------------------------------------------------------------------------
