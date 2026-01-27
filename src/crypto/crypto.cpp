@@ -414,6 +414,8 @@ namespace crypto {
 
     // sig.r = k - sig.c*r
     sc_mulsub(&sig.r, &sig.c, &unwrap(r), &k);
+
+    memwipe(&k, sizeof(k));
   }
 
   // Generate a proof of knowledge of `r` such that (`R = rG` and `D = rA`) or (`R = rB` and `D = rA`) via a Schnorr proof
