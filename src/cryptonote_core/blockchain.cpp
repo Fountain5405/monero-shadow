@@ -1108,7 +1108,7 @@ bool Blockchain::rollback_blockchain_switching(std::list<block>& original_chain,
   // fail if rollback_height passed is too high
   if (rollback_height > m_db->height())
   {
-    return true;
+    return false;
   }
 
   m_timestamps_and_difficulties_height = 0;
