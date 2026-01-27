@@ -1439,6 +1439,14 @@ namespace cryptonote
       }
     }
 
+    if (skip_validation)
+    {
+      res.status = CORE_RPC_STATUS_OK;
+      res.reason = "Not relayed (not synced)";
+      res.not_relayed = true;
+      return true;
+    }
+
     NOTIFY_NEW_TRANSACTIONS::request r;
     r.txs.push_back(std::move(tx_blob));
     m_core.get_protocol()->relay_transactions(r, boost::uuids::nil_uuid(), epee::net_utils::zone::invalid, relay_method::local);
