@@ -4899,6 +4899,11 @@ bool Blockchain::prepare_handle_incoming_blocks(const std::vector<block_complete
   //  txpool and blockchain locks were not held
 
   m_tx_pool.lock();
+  bool unlock_on_exit = true;
+  auto txpool_cleanup = epee::misc_utils::create_scope_leave_handler([&](){
+    if (unlock_on_exit)
+      m_tx_pool.unlock();
+  });
   CRITICAL_REGION_LOCAL1(m_blockchain_lock);
 
   if(blocks_entry.size() == 0)
@@ -4925,7 +4930,10 @@ bool Blockchain::prepare_handle_incoming_blocks(const std::vector<block_complete
 
   const uint64_t height = m_db->height();
   if ((height + blocks_entry.size()) < m_blocks_hash_check.size())
+  {
+    unlock_on_exit = false;
     return true;
+  }
 
   bool blocks_exist = false;
   tools::threadpool& tpool = tools::threadpool::getInstanceForCompute();
@@ -4963,6 +4971,7 @@ bool Blockchain::prepare_handle_incoming_blocks(const std::vector<block_complete
           {
             MDEBUG("Skipping prepare blocks. New blocks don't belong to chain.");
             blocks.clear();
+            unlock_on_exit = false;
             return true;
           }
         }
@@ -5026,6 +5035,7 @@ bool Blockchain::prepare_handle_incoming_blocks(const std::vector<block_complete
   if (blocks_exist)
   {
     MDEBUG("Skipping remainder of prepare blocks. Blocks exist.");
+    unlock_on_exit = false;
     return true;
   }
 
@@ -5220,6 +5230,7 @@ bool Blockchain::prepare_handle_incoming_blocks(const std::vector<block_complete
       MDEBUG("Prepare scantable took: " << scantable << " ms");
   }
 
+  unlock_on_exit = false;
   return true;
 }
 
