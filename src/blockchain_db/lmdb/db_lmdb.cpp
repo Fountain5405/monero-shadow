@@ -2811,23 +2811,31 @@ void BlockchainLMDB::correct_block_cumulative_difficulties(const uint64_t& start
     throw0(DB_ERROR("Incorrect new_cumulative_difficulties size"));
   }
 
-  for (uint64_t height = start_height; height < bc_height; ++height)
+  try
   {
-    MDB_val_set(key, height);
-    result = mdb_cursor_get(m_cur_block_info, (MDB_val *)&zerokval, &key, MDB_GET_BOTH);
-    if (result)
-      throw1(BLOCK_DNE(lmdb_error("Failed to get block info: ", result).c_str()));
+    for (uint64_t height = start_height; height < bc_height; ++height)
+    {
+      MDB_val_set(key, height);
+      result = mdb_cursor_get(m_cur_block_info, (MDB_val *)&zerokval, &key, MDB_GET_BOTH);
+      if (result)
+        throw1(BLOCK_DNE(lmdb_error("Failed to get block info: ", result).c_str()));
 
-    mdb_block_info bi = *(mdb_block_info*)key.mv_data;
-    const difficulty_type d = new_cumulative_difficulties[height - start_height];
-    bi.bi_diff_hi = ((d >> 64) & 0xffffffffffffffff).convert_to<uint64_t>();
-    bi.bi_diff_lo = (d & 0xffffffffffffffff).convert_to<uint64_t>();
+      mdb_block_info bi = *(mdb_block_info*)key.mv_data;
+      const difficulty_type d = new_cumulative_difficulties[height - start_height];
+      bi.bi_diff_hi = ((d >> 64) & 0xffffffffffffffff).convert_to<uint64_t>();
+      bi.bi_diff_lo = (d & 0xffffffffffffffff).convert_to<uint64_t>();
 
-    MDB_val_set(key2, height);
-    MDB_val_set(val, bi);
-    result = mdb_cursor_put(m_cur_block_info, &key2, &val, MDB_CURRENT);
-    if (result)
-      throw0(DB_ERROR(lmdb_error("Failed to overwrite block info to db transaction: ", result).c_str()));
+      MDB_val_set(key2, height);
+      MDB_val_set(val, bi);
+      result = mdb_cursor_put(m_cur_block_info, &key2, &val, MDB_CURRENT);
+      if (result)
+        throw0(DB_ERROR(lmdb_error("Failed to overwrite block info to db transaction: ", result).c_str()));
+    }
+  }
+  catch (...)
+  {
+    block_wtxn_abort();
+    throw;
   }
   block_wtxn_stop();
 }
