@@ -545,13 +545,7 @@ namespace rct {
     //checks if A, B are equal in terms of bytes (may say no if one is a non-reduced scalar)
     //without doing curve operations
     bool equalKeys(const key & a, const key & b) {
-        bool rv = true;
-        for (int i = 0; i < 32; ++i) {
-          if (a.bytes[i] != b.bytes[i]) {
-            rv = false;
-          }
-        }
-        return rv;
+        return !crypto_verify_32(a.bytes, b.bytes);
     }
 
     //Hashing - cn_fast_hash
