@@ -1869,8 +1869,9 @@ bool Blockchain::build_alt_chain(const crypto::hash &prev_id, std::list<block_ex
       bei.cumulative_difficulty = (bei.cumulative_difficulty << 64) + data.cumulative_difficulty_low;
       bei.already_generated_coins = data.already_generated_coins;
       timestamps.push_back(bei.bl.timestamp);
+      const crypto::hash prev = bei.bl.prev_id;
       alt_chain.push_front(std::move(bei));
-      found = m_db->get_alt_block(bei.bl.prev_id, &data, &blob);
+      found = m_db->get_alt_block(prev, &data, &blob);
     }
 
     // if block to be added connects to known blocks that aren't part of the
