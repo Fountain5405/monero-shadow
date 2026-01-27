@@ -1653,6 +1653,15 @@ namespace nodetool
               memcpy(&actual_ipv4, v4ip.to_bytes().data(), sizeof(actual_ipv4));
               connected_subnets.insert(actual_ipv4 & subnet_mask);
             }
+            else
+            {
+              const auto v6_bytes = actual_ip.to_bytes();
+              uint64_t ipv6_prefix = 0;
+              memcpy(&ipv6_prefix, v6_bytes.data(), 6);
+              uint32_t v6_subnet = static_cast<uint32_t>(ipv6_prefix ^ (ipv6_prefix >> 32));
+              v6_subnet |= 0x80000000u;
+              connected_subnets.insert(v6_subnet);
+            }
           }
           return true;
         });
@@ -1712,7 +1721,21 @@ namespace nodetool
                 if (take)
                   subnets.insert(subnet);
               }
-              // else 'take' stays true, we will take an IPv6 address that is not V4 mapped
+              else
+              {
+                // Deduplicate native IPv6 by /48 prefix (first 6 bytes)
+                // This prevents spy nodes within the same IPv6 allocation
+                const auto v6_bytes = actual_ip.to_bytes();
+                uint64_t ipv6_prefix = 0;
+                memcpy(&ipv6_prefix, v6_bytes.data(), 6);
+                // Reuse the uint32_t subnet set by hashing the prefix into a uint32_t
+                uint32_t v6_subnet = static_cast<uint32_t>(ipv6_prefix ^ (ipv6_prefix >> 32));
+                // Use a high bit to avoid collisions with IPv4 subnets
+                v6_subnet |= 0x80000000u;
+                take = subnets.find(v6_subnet) == subnets.end();
+                if (take)
+                  subnets.insert(v6_subnet);
+              }
             }
             if (take)
               subnet_peers.push_back(peer);
