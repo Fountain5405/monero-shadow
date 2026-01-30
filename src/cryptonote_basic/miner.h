@@ -178,16 +178,16 @@ namespace cryptonote
     static boost::logic::tribool on_battery_power();
     std::atomic<uint64_t> m_block_reward;
 
-    // Simulation mode for Shadow network simulation
-    bool m_simulation_mode;
-    int m_simulation_socket_fd;
-    std::string m_simulation_socket_path;
+    // Mining hook mode for Shadow network simulation
+    bool m_mininghook;
+    int m_mininghook_socket_fd;
+    std::string m_mininghook_socket_path;
     // TCP mode for Shadow (Shadow doesn't support Unix pathname sockets)
-    bool m_simulation_tcp;
-    std::string m_simulation_host;
-    uint16_t m_simulation_port;
-    bool connect_simulation_socket();
-    void disconnect_simulation_socket();
-    bool simulation_find_nonce(block& b, const difficulty_type& diffic, uint32_t& nonce);
+    bool m_mininghook_tcp;
+    std::string m_mininghook_host;
+    uint16_t m_mininghook_port;
+    bool connect_mininghook_socket();
+    void disconnect_mininghook_socket();
+    bool mininghook_find_nonce(block& b, const difficulty_type& diffic, uint32_t& nonce);
   };
 }
