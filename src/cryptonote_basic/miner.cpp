@@ -59,6 +59,10 @@
   #include <sys/resource.h>
   #include <sys/times.h>
   #include <time.h>
+  #include <sys/socket.h>
+  #include <sys/un.h>
+  #include <netinet/in.h>
+  #include <arpa/inet.h>
 #elif defined(__FreeBSD__)
   #include <devstat.h>
   #include <errno.h>
@@ -101,6 +105,11 @@ namespace cryptonote
     const command_line::arg_descriptor<uint64_t>    arg_bg_mining_min_idle_interval_seconds =  {"bg-mining-min-idle-interval", "Specify min lookback interval in seconds for determining idle state", miner::BACKGROUND_MINING_DEFAULT_MIN_IDLE_INTERVAL_IN_SECONDS, true};
     const command_line::arg_descriptor<uint16_t>     arg_bg_mining_idle_threshold_percentage =  {"bg-mining-idle-threshold", "Specify minimum avg idle percentage over lookback interval", miner::BACKGROUND_MINING_DEFAULT_IDLE_THRESHOLD_PERCENTAGE, true};
     const command_line::arg_descriptor<uint16_t>     arg_bg_mining_miner_target_percentage =  {"bg-mining-miner-target", "Specify maximum percentage cpu use by miner(s)", miner::BACKGROUND_MINING_DEFAULT_MINING_TARGET_PERCENTAGE, true};
+    const command_line::arg_descriptor<bool>        arg_mininghook = {"mininghook", "Enable mining hook mode for Shadow network simulation (disables real PoW)", false, true};
+    const command_line::arg_descriptor<std::string> arg_mininghook_socket = {"mininghook-socket", "Unix socket path for mining hook agent", "/tmp/monerosim_mining.sock", true};
+    const command_line::arg_descriptor<bool>        arg_mininghook_tcp = {"mininghook-tcp", "Use TCP instead of Unix socket (required for Shadow)", false, true};
+    const command_line::arg_descriptor<std::string> arg_mininghook_host = {"mininghook-host", "TCP host for mining hook agent", "127.0.0.1", true};
+    const command_line::arg_descriptor<uint16_t>    arg_mininghook_port = {"mininghook-port", "TCP port for mining hook agent", 18888, true};
   }
 
 
@@ -127,7 +136,13 @@ namespace cryptonote
     m_idle_threshold(BACKGROUND_MINING_DEFAULT_IDLE_THRESHOLD_PERCENTAGE),
     m_mining_target(BACKGROUND_MINING_DEFAULT_MINING_TARGET_PERCENTAGE),
     m_miner_extra_sleep(BACKGROUND_MINING_DEFAULT_MINER_EXTRA_SLEEP_MILLIS),
-    m_block_reward(0)
+    m_block_reward(0),
+    m_mininghook(false),
+    m_mininghook_socket_fd(-1),
+    m_mininghook_socket_path("/tmp/monerosim_mining.sock"),
+    m_mininghook_tcp(false),
+    m_mininghook_host("127.0.0.1"),
+    m_mininghook_port(18888)
   {
     m_attrs.set_stack_size(THREAD_STACK_SIZE);
   }
@@ -136,6 +151,7 @@ namespace cryptonote
   {
     try { stop(); }
     catch (...) { /* ignore */ }
+    disconnect_mininghook_socket();
   }
   //-----------------------------------------------------------------------------------------------------
   bool miner::set_block_template(const block& bl, const difficulty_type& di, uint64_t height, uint64_t block_reward)
@@ -294,6 +310,11 @@ namespace cryptonote
     command_line::add_arg(desc, arg_bg_mining_min_idle_interval_seconds);
     command_line::add_arg(desc, arg_bg_mining_idle_threshold_percentage);
     command_line::add_arg(desc, arg_bg_mining_miner_target_percentage);
+    command_line::add_arg(desc, arg_mininghook);
+    command_line::add_arg(desc, arg_mininghook_socket);
+    command_line::add_arg(desc, arg_mininghook_tcp);
+    command_line::add_arg(desc, arg_mininghook_host);
+    command_line::add_arg(desc, arg_mininghook_port);
   }
   //-----------------------------------------------------------------------------------------------------
   bool miner::init(const boost::program_options::variables_map& vm, network_type nettype)
@@ -351,6 +372,28 @@ namespace cryptonote
       set_idle_threshold( command_line::get_arg(vm, arg_bg_mining_idle_threshold_percentage) );
     if(command_line::has_arg(vm, arg_bg_mining_miner_target_percentage))
       set_mining_target( command_line::get_arg(vm, arg_bg_mining_miner_target_percentage) );
+
+    // Mining hook mode parameters
+    if(command_line::has_arg(vm, arg_mininghook))
+      m_mininghook = command_line::get_arg(vm, arg_mininghook);
+    if(command_line::has_arg(vm, arg_mininghook_socket))
+      m_mininghook_socket_path = command_line::get_arg(vm, arg_mininghook_socket);
+    if(command_line::has_arg(vm, arg_mininghook_tcp))
+      m_mininghook_tcp = command_line::get_arg(vm, arg_mininghook_tcp);
+    if(command_line::has_arg(vm, arg_mininghook_host))
+      m_mininghook_host = command_line::get_arg(vm, arg_mininghook_host);
+    if(command_line::has_arg(vm, arg_mininghook_port))
+      m_mininghook_port = command_line::get_arg(vm, arg_mininghook_port);
+
+    if(m_mininghook)
+    {
+      MGINFO_YELLOW("*** MINING HOOK MODE ENABLED ***");
+      if(m_mininghook_tcp)
+        MGINFO_YELLOW("Mining will use external agent via TCP: " << m_mininghook_host << ":" << m_mininghook_port);
+      else
+        MGINFO_YELLOW("Mining will use external agent via Unix socket: " << m_mininghook_socket_path);
+      MGINFO_YELLOW("Real Proof-of-Work is DISABLED");
+    }
 
     return true;
   }
@@ -575,36 +618,76 @@ namespace cryptonote
         continue;
       }
 
-      b.nonce = nonce;
-      crypto::hash h;
-
-      if ((b.major_version >= RX_BLOCK_VERSION) && !rx_set)
+      if (m_mininghook)
       {
-        crypto::rx_set_miner_thread(th_local_index, tools::get_max_concurrency());
-        rx_set = true;
-      }
-
-      m_gbh(b, height, NULL, tools::get_max_concurrency(), h);
-
-      if(check_hash(h, local_diff))
-      {
-        //we lucky!
-        ++m_config.current_extra_message_index;
-        MGINFO_GREEN("Found block " << get_block_hash(b) << " at height " << height << " for difficulty: " << local_diff);
-        cryptonote::block_verification_context bvc;
-        if(!m_phandler->handle_block_found(b, bvc) || !bvc.m_added_to_main_chain)
+        // Mining hook mode: only thread 0 mines, others sleep
+        if (th_local_index != 0)
         {
-          --m_config.current_extra_message_index;
-        }else
+          misc_utils::sleep_no_w(1000);
+          continue;
+        }
+
+        // Request nonce from mining hook agent
+        uint32_t sim_nonce = 0;
+        if (mininghook_find_nonce(b, local_diff, sim_nonce))
         {
-          //success update, lets update config
-          if (!m_config_folder_path.empty())
-            epee::serialization::store_t_to_json_file(m_config, m_config_folder_path + "/" + MINER_CONFIG_FILE_NAME);
+          b.nonce = sim_nonce;
+          ++m_config.current_extra_message_index;
+          MGINFO_GREEN("Mininghook: Found block " << get_block_hash(b) << " at height " << height << " for difficulty: " << local_diff);
+          cryptonote::block_verification_context bvc;
+          if(!m_phandler->handle_block_found(b, bvc) || !bvc.m_added_to_main_chain)
+          {
+            --m_config.current_extra_message_index;
+            MWARNING("Mininghook: Block was not added to main chain");
+          }
+          else
+          {
+            if (!m_config_folder_path.empty())
+              epee::serialization::store_t_to_json_file(m_config, m_config_folder_path + "/" + MINER_CONFIG_FILE_NAME);
+          }
+          ++m_hashes;
+        }
+        else
+        {
+          // Socket error or agent not available, sleep and retry
+          MWARNING("Mininghook: Failed to get nonce from agent, retrying...");
+          misc_utils::sleep_no_w(1000);
         }
       }
-      nonce+=m_threads_total;
-      ++m_hashes;
-      ++m_total_hashes;
+      else
+      {
+        // Normal mining mode
+        b.nonce = nonce;
+        crypto::hash h;
+
+        if ((b.major_version >= RX_BLOCK_VERSION) && !rx_set)
+        {
+          crypto::rx_set_miner_thread(th_local_index, tools::get_max_concurrency());
+          rx_set = true;
+        }
+
+        m_gbh(b, height, NULL, tools::get_max_concurrency(), h);
+
+        if(check_hash(h, local_diff))
+        {
+          //we lucky!
+          ++m_config.current_extra_message_index;
+          MGINFO_GREEN("Found block " << get_block_hash(b) << " at height " << height << " for difficulty: " << local_diff);
+          cryptonote::block_verification_context bvc;
+          if(!m_phandler->handle_block_found(b, bvc) || !bvc.m_added_to_main_chain)
+          {
+            --m_config.current_extra_message_index;
+          }else
+          {
+            //success update, lets update config
+            if (!m_config_folder_path.empty())
+              epee::serialization::store_t_to_json_file(m_config, m_config_folder_path + "/" + MINER_CONFIG_FILE_NAME);
+          }
+        }
+        nonce+=m_threads_total;
+        ++m_hashes;
+        ++m_total_hashes;
+      }
     }
     slow_hash_free_state();
     MGINFO("Miner thread stopped ["<< th_local_index << "]");
@@ -1149,4 +1232,170 @@ namespace cryptonote
     LOG_ERROR("couldn't query power status");
     return boost::logic::tribool(boost::logic::indeterminate);
   }
+  //-----------------------------------------------------------------------------------------------------
+  // Mining hook socket functions
+  //-----------------------------------------------------------------------------------------------------
+#ifdef __linux__
+  bool miner::connect_mininghook_socket()
+  {
+    if (m_mininghook_socket_fd >= 0)
+      return true; // Already connected
+
+    if (m_mininghook_tcp)
+    {
+      // TCP socket for Shadow compatibility
+      m_mininghook_socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+      if (m_mininghook_socket_fd < 0)
+      {
+        MERROR("Mininghook: socket(TCP) failed: " << strerror(errno));
+        return false;
+      }
+
+      struct sockaddr_in addr;
+      memset(&addr, 0, sizeof(addr));
+      addr.sin_family = AF_INET;
+      addr.sin_port = htons(m_mininghook_port);
+      if (inet_pton(AF_INET, m_mininghook_host.c_str(), &addr.sin_addr) <= 0)
+      {
+        MERROR("Mininghook: invalid host address: " << m_mininghook_host);
+        close(m_mininghook_socket_fd);
+        m_mininghook_socket_fd = -1;
+        return false;
+      }
+
+      if (connect(m_mininghook_socket_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0)
+      {
+        MERROR("Mininghook: connect() to " << m_mininghook_host << ":" << m_mininghook_port << " failed: " << strerror(errno));
+        close(m_mininghook_socket_fd);
+        m_mininghook_socket_fd = -1;
+        return false;
+      }
+
+      MINFO("Mininghook: connected to mining agent at " << m_mininghook_host << ":" << m_mininghook_port);
+    }
+    else
+    {
+      // Unix socket (original implementation)
+      m_mininghook_socket_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+      if (m_mininghook_socket_fd < 0)
+      {
+        MERROR("Mininghook: socket(Unix) failed: " << strerror(errno));
+        return false;
+      }
+
+      struct sockaddr_un addr;
+      memset(&addr, 0, sizeof(addr));
+      addr.sun_family = AF_UNIX;
+      strncpy(addr.sun_path, m_mininghook_socket_path.c_str(), sizeof(addr.sun_path) - 1);
+
+      if (connect(m_mininghook_socket_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0)
+      {
+        MERROR("Mininghook: connect() to " << m_mininghook_socket_path << " failed: " << strerror(errno));
+        close(m_mininghook_socket_fd);
+        m_mininghook_socket_fd = -1;
+        return false;
+      }
+
+      MINFO("Mininghook: connected to mining agent at " << m_mininghook_socket_path);
+    }
+
+    return true;
+  }
+  //-----------------------------------------------------------------------------------------------------
+  void miner::disconnect_mininghook_socket()
+  {
+    if (m_mininghook_socket_fd >= 0)
+    {
+      close(m_mininghook_socket_fd);
+      m_mininghook_socket_fd = -1;
+      MINFO("Mininghook: disconnected from mining agent");
+    }
+  }
+  //-----------------------------------------------------------------------------------------------------
+  bool miner::mininghook_find_nonce(block& b, const difficulty_type& diffic, uint32_t& nonce)
+  {
+    /*
+     * Protocol (from CLAUDE.md):
+     * Request (48 bytes):
+     *   [0:32]   block_header_hash (bytes)
+     *   [32:40]  difficulty (uint64_le)
+     *   [40:48]  template_id (uint64_le)
+     *
+     * Response (12 bytes):
+     *   [0:4]    nonce (uint32_le)
+     *   [4:12]   template_id (uint64_le)
+     */
+
+    if (!connect_mininghook_socket())
+      return false;
+
+    // Get block hashing blob and compute hash for the request
+    blobdata bd = get_block_hashing_blob(b);
+    crypto::hash block_hash;
+    crypto::cn_fast_hash(bd.data(), bd.size(), block_hash);
+
+    // Prepare request buffer
+    uint8_t request[48];
+    memcpy(request, &block_hash, 32);
+    uint64_t diff_le = diffic.convert_to<uint64_t>();
+    memcpy(request + 32, &diff_le, 8);
+    uint64_t template_id = m_template_no.load();
+    memcpy(request + 40, &template_id, 8);
+
+    // Send request
+    ssize_t written = write(m_mininghook_socket_fd, request, 48);
+    if (written != 48)
+    {
+      MERROR("Mininghook: write() failed: " << strerror(errno));
+      disconnect_mininghook_socket();
+      return false;
+    }
+
+    MDEBUG("Mininghook: sent mining request, difficulty=" << diffic << ", template_id=" << template_id);
+
+    // Read response
+    uint8_t response[12];
+    ssize_t bytes_read = 0;
+    while (bytes_read < 12)
+    {
+      ssize_t r = read(m_mininghook_socket_fd, response + bytes_read, 12 - bytes_read);
+      if (r <= 0)
+      {
+        if (r == 0)
+          MERROR("Mininghook: connection closed by agent");
+        else
+          MERROR("Mininghook: read() failed: " << strerror(errno));
+        disconnect_mininghook_socket();
+        return false;
+      }
+      bytes_read += r;
+    }
+
+    // Parse response
+    memcpy(&nonce, response, 4);
+    uint64_t resp_template_id;
+    memcpy(&resp_template_id, response + 4, 8);
+
+    if (resp_template_id != template_id)
+    {
+      MWARNING("Mininghook: template_id mismatch (sent " << template_id << ", got " << resp_template_id << "), block may be stale");
+    }
+
+    MINFO("Mininghook: received nonce=0x" << std::hex << nonce << std::dec << " from agent");
+    return true;
+  }
+#else
+  // Stub implementations for non-Linux platforms
+  bool miner::connect_mininghook_socket()
+  {
+    MERROR("Mining hook mode is only supported on Linux");
+    return false;
+  }
+  void miner::disconnect_mininghook_socket() {}
+  bool miner::mininghook_find_nonce(block& b, const difficulty_type& diffic, uint32_t& nonce)
+  {
+    (void)b; (void)diffic; (void)nonce;
+    return false;
+  }
+#endif
 }

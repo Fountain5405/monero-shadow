@@ -177,5 +177,17 @@ namespace cryptonote
     static uint8_t get_percent_of_total(uint64_t some_time, uint64_t total_time);
     static boost::logic::tribool on_battery_power();
     std::atomic<uint64_t> m_block_reward;
+
+    // Mining hook mode for Shadow network simulation
+    bool m_mininghook;
+    int m_mininghook_socket_fd;
+    std::string m_mininghook_socket_path;
+    // TCP mode for Shadow (Shadow doesn't support Unix pathname sockets)
+    bool m_mininghook_tcp;
+    std::string m_mininghook_host;
+    uint16_t m_mininghook_port;
+    bool connect_mininghook_socket();
+    void disconnect_mininghook_socket();
+    bool mininghook_find_nonce(block& b, const difficulty_type& diffic, uint32_t& nonce);
   };
 }

@@ -163,6 +163,11 @@ namespace cryptonote
   , "Show time-stats when processing blocks/txs and disk synchronization."
   , 0
   };
+  static const command_line::arg_descriptor<bool> arg_mininghook  = {
+    "mininghook"
+  , "Enable mining hook mode for Shadow network simulation (bypasses PoW verification)."
+  , false
+  };
   static const command_line::arg_descriptor<size_t> arg_block_sync_size  = {
     "block-sync-size"
   , "How many blocks to sync at once during chain synchronization (0 = adaptive)."
@@ -322,6 +327,7 @@ namespace cryptonote
     command_line::add_arg(desc, arg_prep_blocks_threads);
     command_line::add_arg(desc, arg_fast_block_sync);
     command_line::add_arg(desc, arg_show_time_stats);
+    command_line::add_arg(desc, arg_mininghook);
     command_line::add_arg(desc, arg_block_sync_size);
     command_line::add_arg(desc, arg_check_updates);
     command_line::add_arg(desc, arg_test_dbg_lock_sleep);
@@ -683,6 +689,12 @@ namespace cryptonote
 
     bool show_time_stats = command_line::get_arg(vm, arg_show_time_stats) != 0;
     m_blockchain_storage.set_show_time_stats(show_time_stats);
+
+    bool mininghook = command_line::get_arg(vm, arg_mininghook);
+    m_blockchain_storage.set_mininghook(mininghook);
+    if (mininghook)
+      MINFO("*** MINING HOOK MODE ENABLED - PoW verification disabled ***");
+
     CHECK_AND_ASSERT_MES(r, false, "Failed to initialize blockchain storage");
 
     block_sync_size = command_line::get_arg(vm, arg_block_sync_size);
